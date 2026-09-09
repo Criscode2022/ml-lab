@@ -29,7 +29,6 @@ export class VercelPythonRunner implements SandboxRunner {
         backend: 'vercel',
       };
     }
-    const { Sandbox } = await import('@vercel/sandbox');
     const timeoutMs = req.timeoutMs ?? 8000;
     const credentials = hasVercelSandboxCredentials()
       ? {
@@ -38,11 +37,29 @@ export class VercelPythonRunner implements SandboxRunner {
           projectId: process.env.VERCEL_PROJECT_ID,
         }
       : {};
-    const sandbox = await Sandbox.create({
-      ...credentials,
-      runtime: 'python3.13',
-      timeout: Math.min(Math.max(timeoutMs + 2000, 5000), 60_000),
-    });
+    let sandbox: import('@vercel/sandbox').Sandbox;
+    try {
+      const { Sandbox } = require('@vercel/sandbox') as typeof import('@vercel/sandbox');
+      sandbox = await Sandbox.create({
+        ...credentials,
+        runtime: 'python3.13',
+        timeout: Math.min(Math.max(timeoutMs + 2000, 5000), 60_000),
+      });
+    } catch (err) {
+      return {
+        runId,
+        status: 'failed',
+        stdout: '',
+        stderr: err instanceof Error ? err.message : String(err),
+        exitCode: null,
+        interpreterPid: -1,
+        hostPid,
+        timedOut: false,
+        durationMs: Date.now() - started,
+        isolated: true,
+        backend: 'vercel',
+      };
+    }
     this.live.set(runId, { stop: () => sandbox.stop() });
     try {
       await sandbox.writeFiles([{ path: 'main.py', content: Buffer.from(req.code, 'utf8') }]);

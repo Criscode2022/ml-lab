@@ -14,6 +14,7 @@ import type { ExperimentSnapshot, NotebookCell } from '@ml-lab/contracts';
 import { Api } from '../core/api';
 import { ScatterChart } from '../lab/scatter-chart';
 import { LossChart } from '../lab/loss-chart';
+import { runPythonBrowser } from '../lab/pyodide-runner';
 
 @Component({
   selector: 'app-lab-page',
@@ -374,19 +375,33 @@ print("n", len(X))
       initSlope: this.slope(),
       initIntercept: this.intercept(),
     };
+    const apply = (stdout: string, stderr: string, status: string, extra = '') => {
+      this.cells.update((cs) =>
+        cs.map((c) =>
+          c.id === cell.id
+            ? { ...c, output: `${stdout}${stderr}${extra}`, status: status as NotebookCell['status'] }
+            : c,
+        ),
+      );
+    };
+    const pyodide = () => {
+      void runPythonBrowser(cell.source, { 'dataset.json': JSON.stringify(ds) }).then((res) => {
+        const extra = `\n--- reference ---\nmse ${this.currentMse().toFixed(6)}\n`;
+        apply(res.stdout, res.stderr, res.status, extra);
+      });
+    };
     this.api.runPython(cell.source, ds, true).subscribe({
       next: (res) => {
         this.lastRunId.set(res.runId);
+        const failed = res.status === 'failed' || res.stderr?.includes('ENOENT');
+        if (failed) {
+          pyodide();
+          return;
+        }
         const extra = res.reference ? `\n--- reference ---\n${res.reference.stdout}` : '';
-        this.cells.update((cs) =>
-          cs.map((c) => (c.id === cell.id ? { ...c, output: `${res.stdout}${res.stderr}${extra}`, status: res.status as NotebookCell['status'] } : c)),
-        );
+        apply(res.stdout, res.stderr, res.status, extra);
       },
-      error: (err: { error?: { message?: string } }) => {
-        this.cells.update((cs) =>
-          cs.map((c) => (c.id === cell.id ? { ...c, output: err.error?.message ?? 'execution failed', status: 'failed' } : c)),
-        );
-      },
+      error: () => pyodide(),
     });
   }
 

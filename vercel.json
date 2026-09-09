@@ -1,15 +1,4 @@
 {
-  "buildCommand": "npm run build:packages && npm run build -w @ml-lab/api && npm run build -w web",
-  "outputDirectory": "apps/web/dist/web/browser",
-  "framework": null,
-  "installCommand": "npm install",
-  "functions": {
-    "api/[...path].js": {
-      "maxDuration": 60,
-      "includeFiles": "apps/api/dist/**,packages/*/dist/**"
-    }
-  },
-  "rewrites": [
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
-  ]
+  "buildCommand": "npm run build:packages && npm run build -w @ml-lab/api && npm run build -w web && node scripts/vercel-output.mjs",
+  "installCommand": "npm install"
 }

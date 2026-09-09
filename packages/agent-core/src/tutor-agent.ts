@@ -18,10 +18,12 @@ export class AiProviderUnavailableError extends Error {
 }
 
 export function resolveTutorModel(): string {
-  if (process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN) {
-    return 'xai/grok-4.6';
-  }
-  if (process.env.XAI_API_KEY) {
+  if (
+    process.env.AI_GATEWAY_API_KEY ||
+    process.env.VERCEL_OIDC_TOKEN ||
+    process.env.VERCEL === '1' ||
+    process.env.XAI_API_KEY
+  ) {
     return 'xai/grok-4.6';
   }
   throw new AiProviderUnavailableError();
