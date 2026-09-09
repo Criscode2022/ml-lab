@@ -1,0 +1,8 @@
+**/*.spec.ts
+**/*.test.ts
+**/*.map
+.playwright-mcp
+.angular
+apps/web/.angular
+coverage
+.grok

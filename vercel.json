@@ -1,20 +1,15 @@
 {
-  "services": {
-    "web": {
-      "root": "apps/web",
-      "framework": "angular",
-      "installCommand": "cd ../.. && npm install",
-      "buildCommand": "cd ../.. && npm run build:packages && npm run build -w web"
-    },
-    "api": {
-      "root": "apps/api",
-      "framework": "nestjs",
-      "installCommand": "cd ../.. && npm install",
-      "buildCommand": "cd ../.. && npm run build:packages && npm run build -w @ml-lab/api"
+  "buildCommand": "npm run build:packages && npm run build -w @ml-lab/api && npm run build -w web",
+  "outputDirectory": "apps/web/dist/web/browser",
+  "framework": null,
+  "installCommand": "npm install",
+  "functions": {
+    "api/[[...path]].js": {
+      "maxDuration": 60,
+      "includeFiles": "apps/api/dist/**,packages/*/dist/**"
     }
   },
   "rewrites": [
-    { "source": "/api/(.*)", "destination": { "service": "api" } },
-    { "source": "/(.*)", "destination": { "service": "web" } }
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
 }
