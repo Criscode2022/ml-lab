@@ -13,7 +13,8 @@ export class VercelPythonRunner implements SandboxRunner {
     const runId = req.runId ?? randomUUID();
     const hostPid = process.pid;
     const started = Date.now();
-    if (!hasVercelSandboxCredentials()) {
+    const onVercel = Boolean(process.env.VERCEL || process.env.VERCEL_OIDC_TOKEN);
+    if (!onVercel && !hasVercelSandboxCredentials()) {
       return {
         runId,
         status: 'failed',
@@ -30,10 +31,15 @@ export class VercelPythonRunner implements SandboxRunner {
     }
     const { Sandbox } = await import('@vercel/sandbox');
     const timeoutMs = req.timeoutMs ?? 8000;
+    const credentials = hasVercelSandboxCredentials()
+      ? {
+          token: process.env.VERCEL_TOKEN,
+          teamId: process.env.VERCEL_TEAM_ID,
+          projectId: process.env.VERCEL_PROJECT_ID,
+        }
+      : {};
     const sandbox = await Sandbox.create({
-      token: process.env.VERCEL_TOKEN,
-      teamId: process.env.VERCEL_TEAM_ID,
-      projectId: process.env.VERCEL_PROJECT_ID,
+      ...credentials,
       runtime: 'python3.13',
       timeout: Math.min(Math.max(timeoutMs + 2000, 5000), 60_000),
     });
@@ -43,6 +49,7 @@ export class VercelPythonRunner implements SandboxRunner {
       for (const [name, contents] of Object.entries(req.files ?? {})) {
         await sandbox.writeFiles([{ path: name, content: Buffer.from(contents, 'utf8') }]);
       }
+      await sandbox.runCommand('python3', ['-m', 'pip', 'install', '--quiet', 'numpy']).catch(() => undefined);
       const cmd = await sandbox.runCommand('python3', ['-u', 'main.py']);
       const stdout = await cmd.stdout();
       const stderr = await cmd.stderr();

@@ -4,7 +4,7 @@
   "framework": null,
   "installCommand": "npm install",
   "functions": {
-    "api/[[...path]].js": {
+    "api/[...path].js": {
       "maxDuration": 60,
       "includeFiles": "apps/api/dist/**,packages/*/dist/**"
     }
