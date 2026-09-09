@@ -29,6 +29,7 @@ cpSync(staticSrc, staticDir, { recursive: true });
 function copyIntoFunc(absPath) {
   const rel = relative(root, absPath);
   if (!rel || rel.startsWith('..')) return;
+  if (rel.startsWith(`node_modules${'/@ml-lab'}`)) return;
   const dest = join(funcDir, rel);
   mkdirSync(dirname(dest), { recursive: true });
   cpSync(absPath, dest, { recursive: true, dereference: true });
@@ -40,6 +41,16 @@ const { fileList } = await nodeFileTrace([handlerRel], {
 });
 for (const file of fileList) {
   copyIntoFunc(resolve(root, file));
+}
+
+for (const pkg of ['contracts', 'db', 'ml-core', 'i18n', 'sandbox', 'agent-core']) {
+  const dest = join(funcDir, 'node_modules/@ml-lab', pkg);
+  mkdirSync(dest, { recursive: true });
+  cpSync(join(root, 'packages', pkg, 'package.json'), join(dest, 'package.json'));
+  cpSync(join(root, 'packages', pkg, 'dist'), join(dest, 'dist'), {
+    recursive: true,
+    dereference: true,
+  });
 }
 
 for (const extra of [
