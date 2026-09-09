@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /**
  * Emit Vercel Build Output API v3 so nested /api/* routes hit Nest.
- * Auto-detected api/[...path].js only matched a single path segment.
+ * Bundle the function with esbuild (workspace packages as real files).
  */
 import { cpSync, mkdirSync, rmSync, writeFileSync, existsSync } from 'node:fs';
-import { dirname, join, relative, resolve } from 'node:path';
-import { nodeFileTrace } from '@vercel/nft';
+import { join } from 'node:path';
+import { build } from 'esbuild';
 
 const root = process.cwd();
 const staticSrc = join(root, 'apps/web/dist/web/browser');
@@ -26,59 +26,25 @@ mkdirSync(staticDir, { recursive: true });
 mkdirSync(funcDir, { recursive: true });
 cpSync(staticSrc, staticDir, { recursive: true });
 
-function copyIntoFunc(absPath) {
-  const rel = relative(root, absPath);
-  if (!rel || rel.startsWith('..')) return;
-  if (rel.startsWith(`node_modules${'/@ml-lab'}`)) return;
-  const dest = join(funcDir, rel);
-  mkdirSync(dirname(dest), { recursive: true });
-  cpSync(absPath, dest, { recursive: true, dereference: true });
-}
-
-const { fileList } = await nodeFileTrace([handlerRel], {
-  base: root,
-  mixedModules: true,
+await build({
+  absWorkingDir: root,
+  entryPoints: [join(root, handlerRel)],
+  bundle: true,
+  platform: 'node',
+  format: 'cjs',
+  outfile: join(funcDir, 'index.js'),
+  packages: 'bundle',
+  allowOverwrite: true,
+  logLevel: 'warning',
+  external: ['@nestjs/microservices', '@nestjs/websockets', 'class-transformer', 'class-validator'],
 });
-for (const file of fileList) {
-  copyIntoFunc(resolve(root, file));
-}
-
-for (const pkg of ['contracts', 'db', 'ml-core', 'i18n', 'sandbox', 'agent-core']) {
-  const dest = join(funcDir, 'node_modules/@ml-lab', pkg);
-  mkdirSync(dest, { recursive: true });
-  cpSync(join(root, 'packages', pkg, 'package.json'), join(dest, 'package.json'));
-  cpSync(join(root, 'packages', pkg, 'dist'), join(dest, 'dist'), {
-    recursive: true,
-    dereference: true,
-  });
-}
-
-for (const extra of [
-  'apps/api/dist',
-  'packages/contracts/dist',
-  'packages/db/dist',
-  'packages/ml-core/dist',
-  'packages/i18n/dist',
-  'packages/sandbox/dist',
-  'packages/agent-core/dist',
-  'packages/contracts/package.json',
-  'packages/db/package.json',
-  'packages/ml-core/package.json',
-  'packages/i18n/package.json',
-  'packages/sandbox/package.json',
-  'packages/agent-core/package.json',
-  'node_modules/@vercel/sandbox',
-]) {
-  const abs = join(root, extra);
-  if (existsSync(abs)) copyIntoFunc(abs);
-}
 
 writeFileSync(
   join(funcDir, '.vc-config.json'),
   JSON.stringify(
     {
       runtime: 'nodejs20.x',
-      handler: handlerRel,
+      handler: 'index.js',
       launcherType: 'Nodejs',
       shouldAddHelpers: true,
       maxDuration: 60,
@@ -104,4 +70,4 @@ writeFileSync(
   ),
 );
 
-console.log('vercel output: static + /api/[...path] catch-all');
+console.log('vercel output: static + bundled /api/[...path]');
