@@ -1,3 +1,8 @@
+.angular/
+.vercel/
+apps/web/.angular/
+.playwright-mcp/
+
 # Logs
 logs
 *.log

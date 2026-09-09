@@ -1,0 +1,16 @@
+{
+  "name": "@ml-lab/db",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "^0.3.7",
+    "drizzle-orm": "^0.44.5",
+    "postgres": "^3.4.7"
+  }
+}
