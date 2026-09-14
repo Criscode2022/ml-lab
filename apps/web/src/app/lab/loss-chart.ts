@@ -8,9 +8,9 @@ import { Component, computed, input } from '@angular/core';
       @if (path()) {
         <path [attr.d]="path()" fill="none" stroke="#5eead4" stroke-width="2" />
       }
-      <text x="16" y="22" fill="#8b919c" font-size="11" font-family="IBM Plex Mono, monospace">loss</text>
+      <text x="16" y="22" fill="#8b919c" font-size="11" font-family="IBM Plex Mono, monospace">{{ caption() }}</text>
       @if (diverged()) {
-        <text x="560" y="22" fill="#f87171" font-size="11" font-family="IBM Plex Mono, monospace">diverging</text>
+        <text x="520" y="22" fill="#f87171" font-size="11" font-family="IBM Plex Mono, monospace">{{ divergedLabel() }}</text>
       }
     </svg>
   `,
@@ -18,6 +18,8 @@ import { Component, computed, input } from '@angular/core';
 export class LossChart {
   readonly losses = input.required<number[]>();
   readonly diverged = input(false);
+  readonly caption = input('loss');
+  readonly divergedLabel = input('diverging');
 
   readonly path = computed(() => {
     const ls = this.losses().filter((v) => Number.isFinite(v));

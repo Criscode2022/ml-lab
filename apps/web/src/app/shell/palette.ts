@@ -1,7 +1,8 @@
-import { Component, output, signal } from '@angular/core';
+import { Component, inject, output, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { t } from '@ml-lab/i18n';
 import { LABS } from '../lab/catalog';
+import { LabMode } from '../lab/mode';
 
 type Cmd = { id: string; title: string; group: string; href?: string; action?: string };
 
@@ -35,12 +36,14 @@ export class Palette {
   readonly closed = output();
   readonly action = output<string>();
   readonly query = signal('');
+  private readonly mode = inject(LabMode);
   constructor(private readonly router: Router) {}
 
   private commands(): Cmd[] {
-    const labs: Cmd[] = LABS.map((lab) => ({
+    const basic = this.mode.basic();
+    const labs: Cmd[] = LABS.filter((lab) => !basic || lab.ready).map((lab) => ({
       id: 'lab-' + lab.id,
-      title: lab.title,
+      title: basic ? lab.playTitle : lab.title,
       group: lab.ready ? 'Labs' : 'Later',
       href: lab.href,
     }));

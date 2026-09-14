@@ -1,4 +1,4 @@
-import { Component, HostListener, computed, inject, signal } from '@angular/core';
+import { Component, HostListener, computed, effect, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import {
   describeExperiment,
@@ -17,6 +17,8 @@ import { ScatterChart } from '../lab/scatter-chart';
 import { LossChart } from '../lab/loss-chart';
 import { runPythonBrowser } from '../lab/pyodide-runner';
 import { isRunnableLab, labById } from '../lab/catalog';
+import { LabMode } from '../lab/mode';
+import { headlineFor, matchPercent } from '../lab/copy';
 
 type Panel = 'happening' | 'math' | 'code' | 'ask';
 
@@ -38,24 +40,26 @@ type Panel = 'happening' | 'math' | 'code' | 'ask';
         <div class="flex min-w-0 flex-1 flex-col">
           <div class="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-3">
             <div>
-              <p class="font-mono text-[11px] uppercase tracking-[0.2em] text-muted">{{ lab()?.cluster }}</p>
-              <h1 class="text-lg font-semibold">{{ lab()?.title }}</h1>
+              <p class="text-[11px] font-medium uppercase tracking-[0.16em] text-muted">{{ lab()?.cluster }}</p>
+              <h1 class="text-xl font-semibold">{{ mode.basic() ? lab()?.playTitle : lab()?.title }}</h1>
             </div>
             <div class="flex flex-wrap gap-2">
               <button type="button" class="rounded-full border border-line px-3 py-1.5 text-xs" (click)="open('ask'); why()">{{ t('why') }}</button>
               <button type="button" class="rounded-full border border-danger px-3 py-1.5 text-xs text-danger" (click)="breakIt()">{{ t('breakIt') }}</button>
-              <button type="button" class="rounded-full bg-accent px-3 py-1.5 text-xs font-semibold text-ink" (click)="save()">{{ t('saveExperiment') }}</button>
+              @if (mode.advanced()) {
+                <button type="button" class="rounded-full bg-accent px-3 py-1.5 text-xs font-semibold text-ink" (click)="save()">{{ t('saveExperiment') }}</button>
+              }
               @if (savedFlash()) {
-                <span class="self-center font-mono text-[11px] text-accent">{{ t('saved') }}</span>
+                <span class="self-center text-[11px] text-accent">{{ t('saved') }}</span>
               }
             </div>
           </div>
 
-          <div class="flex items-start justify-between gap-3 border-b border-line px-5 py-3" [class.bg-danger/10]="view().situation === 'diverged'">
-            <p class="max-w-3xl text-sm leading-relaxed" [class.text-danger]="view().situation === 'diverged'" [class.text-muted]="view().situation !== 'diverged'">
+          <div class="flex items-start justify-between gap-3 border-b border-line px-5 py-4" [class.bg-danger/10]="view().situation === 'diverged'">
+            <p class="max-w-3xl text-[15px] leading-relaxed" [class.text-danger]="view().situation === 'diverged'">
               {{ headline() }}
             </p>
-            <label class="shrink-0 text-[11px] text-muted">
+            <label class="shrink-0 text-[11px] text-muted" [class.hidden]="mode.basic() && depth() < 4">
               {{ t('depth') }}
               <input class="ml-2 align-middle" type="range" min="1" max="5" [value]="depth()" (input)="depth.set(+$any($event.target).value)" aria-label="Theory depth" />
             </label>
@@ -76,55 +80,72 @@ type Panel = 'happening' | 'math' | 'code' | 'ask';
                 (interceptChange)="intercept.set($event)"
               />
             </div>
-            <p class="font-mono text-[10px] text-muted">{{ t('ghostOls') }}</p>
+            <p class="text-xs text-muted">{{ mode.basic() ? t('playHint') : t('ghostOls') }}</p>
 
-            <div class="grid gap-3 md:grid-cols-4">
-              <label class="rounded-xl border border-line bg-panel p-3 text-xs text-muted">{{ t('slope') }}
+            <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <label class="rounded-xl border border-line bg-panel p-3 text-xs text-muted">{{ mode.basic() ? t('tilt') : t('slope') }}
                 <input class="mt-1 w-full" type="range" min="-4" max="4" step="0.01" [value]="slope()" (input)="slope.set(+$any($event.target).value)" />
                 <span class="font-mono text-text" data-testid="slope-value">{{ slope().toFixed(3) }}</span>
               </label>
-              <label class="rounded-xl border border-line bg-panel p-3 text-xs text-muted">{{ t('intercept') }}
+              <label class="rounded-xl border border-line bg-panel p-3 text-xs text-muted">{{ mode.basic() ? t('lift') : t('intercept') }}
                 <input class="mt-1 w-full" type="range" min="-4" max="4" step="0.01" [value]="intercept()" (input)="intercept.set(+$any($event.target).value)" />
                 <span class="font-mono text-text">{{ intercept().toFixed(3) }}</span>
               </label>
-              <div class="rounded-xl border border-line bg-panel p-3 text-xs text-muted">{{ t('mse') }}
-                <p class="mt-2 font-mono text-lg text-accent" data-testid="mse-value">{{ currentMse().toFixed(4) }}</p>
+              <div class="rounded-xl border border-line bg-panel p-3 text-xs text-muted">
+                {{ mode.basic() ? t('match') : t('mse') }}
+                @if (mode.basic()) {
+                  <p class="mt-2 font-mono text-lg text-accent">{{ match() }}%</p>
+                  <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-ink">
+                    <div class="h-full rounded-full bg-accent" [style.width.%]="match()"></div>
+                  </div>
+                }
+                <p class="mt-2 font-mono text-accent" [class.text-lg]="mode.advanced()" [class.text-xs]="mode.basic()" [class.text-muted]="mode.basic()" data-testid="mse-value">{{ currentMse().toFixed(4) }}</p>
               </div>
-              <div class="rounded-xl border border-line bg-panel p-3 text-xs text-muted">{{ t('mae') }}
-                <p class="mt-2 font-mono text-lg">{{ currentMae().toFixed(4) }}</p>
+              @if (mode.advanced()) {
+                <div class="rounded-xl border border-line bg-panel p-3 text-xs text-muted">{{ t('mae') }}
+                  <p class="mt-2 font-mono text-lg">{{ currentMae().toFixed(4) }}</p>
+                </div>
+              }
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2">
+              <button type="button" class="rounded-full bg-accent px-4 py-2 text-sm font-semibold text-ink" (click)="findLine()">{{ mode.basic() ? t('findLine') : t('runGd') }}</button>
+              <button type="button" class="rounded-full border border-line px-4 py-2 text-sm" (click)="fitOls()">{{ mode.basic() ? 'Best straight line' : t('olsFit') }}</button>
+              <button type="button" class="rounded-full border border-line px-4 py-2 text-sm" (click)="stepGd()">{{ mode.basic() ? t('oneStep') : t('stepGd') }}</button>
+              <button type="button" class="rounded-full border border-line px-4 py-2 text-sm" (click)="resetFit()">{{ mode.basic() ? t('startOver') : t('resetFit') }}</button>
+              @if (mode.advanced()) {
+                <span class="font-mono text-[11px] text-muted">ŷ = {{ slope().toFixed(2) }} x + {{ intercept().toFixed(2) }}</span>
+              }
+            </div>
+
+            @if (mode.advanced()) {
+              <div class="grid gap-3 md:grid-cols-3">
+                <label class="text-xs text-muted">{{ t('samples') }}
+                  <input type="range" min="20" max="160" [value]="n()" (input)="n.set(+$any($event.target).value); regen()" />
+                </label>
+                <label class="text-xs text-muted">{{ t('noise') }}
+                  <input type="range" min="0" max="1.2" step="0.05" [value]="noise()" (input)="noise.set(+$any($event.target).value); regen()" />
+                </label>
+                <label class="text-xs text-muted">{{ t('outliers') }}
+                  <input type="range" min="0" max="8" [value]="outliers()" (input)="outliers.set(+$any($event.target).value); regen()" />
+                </label>
               </div>
-            </div>
+              <div class="flex flex-wrap items-center gap-3 rounded-2xl border border-line bg-panel p-4">
+                <label class="text-xs text-muted">{{ t('learningRate') }}
+                  <input class="ml-2 w-32 font-mono" type="number" step="0.01" [value]="lr()" (input)="lr.set(+$any($event.target).value)" />
+                </label>
+                <label class="text-xs text-muted">{{ t('iterations') }}
+                  <input class="ml-2 w-20 font-mono" type="number" min="1" max="400" [value]="iters()" (input)="iters.set(+$any($event.target).value)" />
+                </label>
+              </div>
+            }
 
-            <div class="flex flex-wrap items-center gap-3">
-              <button type="button" class="rounded-full border border-line px-3 py-1.5 text-xs" (click)="fitOls()">{{ t('olsFit') }}</button>
-              <span class="font-mono text-[11px] text-muted">ŷ = {{ slope().toFixed(2) }} x + {{ intercept().toFixed(2) }}</span>
-            </div>
-
-            <div class="grid gap-3 md:grid-cols-3">
-              <label class="text-xs text-muted">{{ t('samples') }}
-                <input type="range" min="20" max="160" [value]="n()" (input)="n.set(+$any($event.target).value); regen()" />
-              </label>
-              <label class="text-xs text-muted">{{ t('noise') }}
-                <input type="range" min="0" max="1.2" step="0.05" [value]="noise()" (input)="noise.set(+$any($event.target).value); regen()" />
-              </label>
-              <label class="text-xs text-muted">{{ t('outliers') }}
-                <input type="range" min="0" max="8" [value]="outliers()" (input)="outliers.set(+$any($event.target).value); regen()" />
-              </label>
-            </div>
-
-            <div class="flex flex-wrap items-center gap-3 rounded-2xl border border-line bg-panel p-4">
-              <label class="text-xs text-muted">{{ t('learningRate') }}
-                <input class="ml-2 w-32 font-mono" type="number" step="0.01" [value]="lr()" (input)="lr.set(+$any($event.target).value)" />
-              </label>
-              <label class="text-xs text-muted">{{ t('iterations') }}
-                <input class="ml-2 w-20 font-mono" type="number" min="1" max="400" [value]="iters()" (input)="iters.set(+$any($event.target).value)" />
-              </label>
-              <button type="button" class="rounded-full bg-accent px-3 py-1.5 text-xs font-semibold text-ink" (click)="runGd()">{{ t('runGd') }}</button>
-              <button type="button" class="rounded-full border border-line px-3 py-1.5 text-xs" (click)="stepGd()">{{ t('stepGd') }}</button>
-              <button type="button" class="rounded-full border border-line px-3 py-1.5 text-xs" (click)="resetFit()">{{ t('resetFit') }}</button>
-            </div>
-
-            <app-loss-chart [losses]="losses()" [diverged]="diverged()" />
+            <app-loss-chart
+              [losses]="losses()"
+              [diverged]="diverged()"
+              [caption]="mode.basic() ? 'How the error changed' : 'loss'"
+              [divergedLabel]="mode.basic() ? 'flew away' : 'diverging'"
+            />
 
             @if (depth() >= 4) {
               <div class="rounded-xl bg-ink p-4 font-mono text-sm text-accent" data-testid="math-panel">
@@ -137,10 +158,12 @@ type Panel = 'happening' | 'math' | 'code' | 'ask';
           </div>
         </div>
 
-        <aside class="flex w-[72px] shrink-0 flex-col border-l border-line bg-panel py-3" aria-label="Inspector">
-          <button type="button" class="px-2 py-3 text-[11px] leading-tight text-muted hover:text-text" [class.text-accent]="panel() === 'happening'" (click)="toggle('happening')">{{ t('inspect') }}</button>
-          <button type="button" class="px-2 py-3 text-[11px] leading-tight text-muted hover:text-text" [class.text-accent]="panel() === 'math'" (click)="toggle('math')">{{ t('math') }}</button>
-          <button type="button" class="px-2 py-3 text-[11px] leading-tight text-muted hover:text-text" [class.text-accent]="panel() === 'code'" (click)="toggle('code')">{{ t('code') }}</button>
+        <aside class="flex w-[76px] shrink-0 flex-col border-l border-line bg-panel py-3" aria-label="Inspector">
+          <button type="button" class="px-2 py-3 text-[11px] leading-tight text-muted hover:text-text" [class.text-accent]="panel() === 'happening'" (click)="toggle('happening')">{{ mode.basic() ? t('explain') : t('inspect') }}</button>
+          @if (mode.advanced()) {
+            <button type="button" class="px-2 py-3 text-[11px] leading-tight text-muted hover:text-text" [class.text-accent]="panel() === 'math'" (click)="toggle('math')">{{ t('math') }}</button>
+            <button type="button" class="px-2 py-3 text-[11px] leading-tight text-muted hover:text-text" [class.text-accent]="panel() === 'code'" (click)="toggle('code')">{{ t('code') }}</button>
+          }
           <button type="button" class="px-2 py-3 text-[11px] leading-tight text-muted hover:text-text" [class.text-accent]="panel() === 'ask'" (click)="toggle('ask')">{{ t('ask') }}</button>
         </aside>
 
@@ -149,15 +172,19 @@ type Panel = 'happening' | 'math' | 'code' | 'ask';
             @if (openPanel === 'happening') {
               <h2 class="text-sm font-medium">{{ t('happening') }}</h2>
               <p class="mt-2 text-sm leading-relaxed text-muted">{{ headline() }}</p>
-              <dl class="mt-4 space-y-2 font-mono text-[11px]">
-                <div class="flex justify-between gap-3"><dt class="text-muted">MSE</dt><dd>{{ view().mse.toFixed(4) }}</dd></div>
-                <div class="flex justify-between gap-3"><dt class="text-muted">OLS MSE</dt><dd>{{ view().olsMse.toFixed(4) }}</dd></div>
-                <div class="flex justify-between gap-3"><dt class="text-muted">ratio</dt><dd>{{ view().ratio.toFixed(2) }}×</dd></div>
-                <div class="flex justify-between gap-3"><dt class="text-muted">∂MSE/∂s</dt><dd>{{ view().gradients.dSlope.toFixed(3) }}</dd></div>
-                <div class="flex justify-between gap-3"><dt class="text-muted">∂MSE/∂b</dt><dd>{{ view().gradients.dIntercept.toFixed(3) }}</dd></div>
-                <div class="flex justify-between gap-3"><dt class="text-muted">lr</dt><dd>{{ lr() }}</dd></div>
-              </dl>
-              <p class="mt-4 text-xs text-muted">{{ t('breakItHint') }}</p>
+              @if (mode.basic()) {
+                <p class="mt-4 text-sm text-muted">Match score {{ match() }}%. 100% means the straight line is as close as it can be.</p>
+              } @else {
+                <dl class="mt-4 space-y-2 font-mono text-[11px]">
+                  <div class="flex justify-between gap-3"><dt class="text-muted">MSE</dt><dd>{{ view().mse.toFixed(4) }}</dd></div>
+                  <div class="flex justify-between gap-3"><dt class="text-muted">OLS MSE</dt><dd>{{ view().olsMse.toFixed(4) }}</dd></div>
+                  <div class="flex justify-between gap-3"><dt class="text-muted">ratio</dt><dd>{{ view().ratio.toFixed(2) }}×</dd></div>
+                  <div class="flex justify-between gap-3"><dt class="text-muted">∂MSE/∂s</dt><dd>{{ view().gradients.dSlope.toFixed(3) }}</dd></div>
+                  <div class="flex justify-between gap-3"><dt class="text-muted">∂MSE/∂b</dt><dd>{{ view().gradients.dIntercept.toFixed(3) }}</dd></div>
+                  <div class="flex justify-between gap-3"><dt class="text-muted">lr</dt><dd>{{ lr() }}</dd></div>
+                </dl>
+              }
+              <p class="mt-4 text-xs text-muted">{{ mode.basic() ? 'Break it on purpose to see a bad search.' : t('breakItHint') }}</p>
               <div class="mt-6">
                 <h3 class="text-sm font-medium">{{ t('challenge') }}</h3>
                 @if (!challenge()) {
@@ -202,7 +229,7 @@ type Panel = 'happening' | 'math' | 'code' | 'ask';
             }
             @if (openPanel === 'ask') {
               <h2 class="text-sm font-medium">{{ t('tutor') }}</h2>
-              <p class="mt-1 text-xs text-muted">Grounded in this experiment. Ask when you want it.</p>
+              <p class="mt-1 text-xs text-muted">{{ t('askHint') }}</p>
               <div class="lab-scroll mt-3 max-h-[360px] space-y-2 overflow-auto text-sm">
                 @for (m of tutorLog(); track $index) {
                   <p [class.text-muted]="m.role === 'user'"><span class="font-mono text-[10px] text-accent">{{ m.role }}</span> {{ m.text }}</p>
@@ -227,6 +254,7 @@ type Panel = 'happening' | 'math' | 'code' | 'ask';
 export class LabPage {
   private readonly api = inject(Api);
   private readonly route = inject(ActivatedRoute);
+  readonly mode = inject(LabMode);
   readonly t = t;
 
   readonly labId = signal(this.route.snapshot.paramMap.get('conceptId') ?? 'linear-regression');
@@ -288,8 +316,14 @@ print("n", len(X))
     }),
   );
   readonly pythonCells = computed(() => this.cells().filter((c) => c.type === 'python'));
+  readonly match = computed(() => matchPercent(this.view().ratio));
 
   constructor() {
+    effect(() => {
+      if (this.mode.basic() && (this.panel() === 'math' || this.panel() === 'code')) {
+        this.panel.set(null);
+      }
+    });
     this.route.paramMap.subscribe((params) => {
       const concept = params.get('conceptId') ?? 'linear-regression';
       const switched = concept !== this.labId();
@@ -320,23 +354,15 @@ print("n", len(X))
   }
 
   headline(): string {
-    const v = this.view();
-    switch (v.situation) {
-      case 'diverged':
-        return t('readoutDiverged');
-      case 'oscillating':
-        return t('readoutOscillating');
-      case 'near-ols':
-        return t('readoutNear');
-      case 'improving':
-        return t('readoutImproving');
-      case 'empty':
-        return t('readoutEmpty');
-      case 'far-from-ols':
-        return `This line is a weak fit. MSE is ${v.ratio.toFixed(1)}× the closed-form minimum.`;
-      default:
-        return t('readoutIdle');
+    return headlineFor(this.view().situation, this.view().ratio, this.mode.mode());
+  }
+
+  findLine() {
+    if (this.mode.basic()) {
+      this.lr.set(0.08);
+      this.iters.set(80);
     }
+    this.runGd();
   }
 
   toggle(next: Panel) {

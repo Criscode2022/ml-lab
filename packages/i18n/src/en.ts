@@ -120,6 +120,22 @@ export const en = {
   paletteCode: 'Open notebook',
   paletteOls: 'Snap to least squares',
   paletteGd: 'Open gradient descent',
+  modeBasic: 'Basic',
+  modeAdvanced: 'Advanced',
+  modeGroup: 'Complexity',
+  findLine: 'Find the line',
+  oneStep: 'One step',
+  startOver: 'Start over',
+  howWrong: 'How wrong',
+  match: 'Match',
+  tilt: 'Tilt',
+  lift: 'Up / down',
+  messierDots: 'Messier dots',
+  moreDots: 'More dots',
+  explain: 'Explain',
+  playHint: 'Drag the white line. The dashed line is the best straight fit.',
+  askHint: 'Ask anything about this picture. You do not have to.',
+  soon: 'soon',
 } as const;
 
 export type MessageKey = keyof typeof en;

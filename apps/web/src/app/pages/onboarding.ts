@@ -2,13 +2,14 @@ import { Component, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import type { ExperienceLevel, LearningGoal } from '@ml-lab/contracts';
 import { Api } from '../core/api';
+import { LabMode } from '../lab/mode';
 
 @Component({
   selector: 'app-onboarding',
   template: `
     <div class="mx-auto max-w-2xl px-6 py-10">
-      <p class="font-mono text-xs uppercase tracking-[0.2em] text-muted">How should we start?</p>
-      <h1 class="mt-2 text-3xl font-semibold">Optional context. Then the labs.</h1>
+      <p class="font-mono text-xs uppercase tracking-[0.2em] text-muted">Optional</p>
+      <h1 class="mt-2 text-3xl font-semibold">You can skip this. The lab is the point.</h1>
       <div class="mt-8 space-y-6">
         <fieldset>
           <legend class="text-xs uppercase tracking-wide text-muted">Goal</legend>
@@ -37,11 +38,11 @@ import { Api } from '../core/api';
           <span class="font-mono text-accent">{{ minutes() }}</span>
         </label>
         <div class="flex flex-wrap gap-3">
-          <button type="button" class="rounded-full bg-accent px-6 py-3 text-sm font-semibold text-ink" (click)="go('/app')">
-            Browse labs
+          <button type="button" class="rounded-full bg-accent px-6 py-3 text-sm font-semibold text-ink" (click)="go('/app/lab/linear-regression')">
+            Start playing
           </button>
-          <button type="button" class="rounded-full border border-line px-6 py-3 text-sm" (click)="go('/app/lab/linear-regression')">
-            Jump into linear regression
+          <button type="button" class="rounded-full border border-line px-6 py-3 text-sm" (click)="go('/app')">
+            See all labs
           </button>
         </div>
       </div>
@@ -51,6 +52,7 @@ import { Api } from '../core/api';
 export class OnboardingPage {
   private readonly api = inject(Api);
   private readonly router = inject(Router);
+  private readonly mode = inject(LabMode);
   readonly goal = signal<LearningGoal>('understand-ml');
   readonly level = signal<ExperienceLevel>('beginner');
   readonly minutes = signal(20);
@@ -70,6 +72,7 @@ export class OnboardingPage {
   ];
 
   go(href: string) {
+    this.mode.set(this.level() === 'beginner' ? 'basic' : 'advanced');
     this.api
       .saveProfile({
         goal: this.goal(),
