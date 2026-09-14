@@ -19,8 +19,16 @@ import { runPythonBrowser } from '../lab/pyodide-runner';
 import { isRunnableLab, labById } from '../lab/catalog';
 import { LabMode } from '../lab/mode';
 import { headlineFor, matchPercent } from '../lab/copy';
+import {
+  BEGINNER_PRESETS,
+  CHART_LEGEND,
+  GLOSSARY,
+  tryIdeas,
+  type BeginnerPreset,
+  type TryIdea,
+} from '../lab/beginner';
 
-type Panel = 'happening' | 'math' | 'code' | 'ask';
+type Panel = 'happening' | 'math' | 'code' | 'ask' | 'help';
 
 @Component({
   selector: 'app-lab-page',
@@ -44,6 +52,9 @@ type Panel = 'happening' | 'math' | 'code' | 'ask';
               <h1 class="text-xl font-semibold">{{ mode.basic() ? lab()?.playTitle : lab()?.title }}</h1>
             </div>
             <div class="flex flex-wrap gap-2">
+              @if (mode.basic()) {
+                <button type="button" class="rounded-full border border-line px-3 py-1.5 text-xs" (click)="open('help')">{{ t('help') }}</button>
+              }
               <button type="button" class="rounded-full border border-line px-3 py-1.5 text-xs" (click)="open('ask'); why()">{{ t('why') }}</button>
               <button type="button" class="rounded-full border border-danger px-3 py-1.5 text-xs text-danger" (click)="breakIt()">{{ t('breakIt') }}</button>
               @if (mode.advanced()) {
@@ -80,19 +91,53 @@ type Panel = 'happening' | 'math' | 'code' | 'ask';
                 (interceptChange)="intercept.set($event)"
               />
             </div>
-            <p class="text-xs text-muted">{{ mode.basic() ? t('playHint') : t('ghostOls') }}</p>
+            @if (mode.basic()) {
+              <ul class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
+                @for (item of legend; track item.label) {
+                  <li class="flex items-center gap-1.5">
+                    <span class="inline-block h-2 w-4 rounded-sm" [class.border]="item.dashed" [style.background]="item.dashed ? 'transparent' : item.swatch" [style.borderColor]="item.swatch"></span>
+                    {{ item.label }}
+                  </li>
+                }
+              </ul>
+            } @else {
+              <p class="text-xs text-muted">{{ t('ghostOls') }}</p>
+            }
 
             <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <label class="rounded-xl border border-line bg-panel p-3 text-xs text-muted">{{ mode.basic() ? t('tilt') : t('slope') }}
+              <label class="rounded-xl border border-line bg-panel p-3 text-xs text-muted">
+                <span class="flex items-center justify-between">
+                  {{ mode.basic() ? t('tilt') : t('slope') }}
+                  @if (mode.basic()) {
+                    <button type="button" class="text-[10px] text-accent" (click)="tip.set(tip() === 'tilt' ? null : 'tilt')">?</button>
+                  }
+                </span>
                 <input class="mt-1 w-full" type="range" min="-4" max="4" step="0.01" [value]="slope()" (input)="slope.set(+$any($event.target).value)" />
                 <span class="font-mono text-text" data-testid="slope-value">{{ slope().toFixed(3) }}</span>
+                @if (tip() === 'tilt') {
+                  <p class="mt-2 text-[11px] leading-relaxed text-muted">How steep the line is. Drag the plot or this slider.</p>
+                }
               </label>
-              <label class="rounded-xl border border-line bg-panel p-3 text-xs text-muted">{{ mode.basic() ? t('lift') : t('intercept') }}
+              <label class="rounded-xl border border-line bg-panel p-3 text-xs text-muted">
+                <span class="flex items-center justify-between">
+                  {{ mode.basic() ? t('lift') : t('intercept') }}
+                  @if (mode.basic()) {
+                    <button type="button" class="text-[10px] text-accent" (click)="tip.set(tip() === 'lift' ? null : 'lift')">?</button>
+                  }
+                </span>
                 <input class="mt-1 w-full" type="range" min="-4" max="4" step="0.01" [value]="intercept()" (input)="intercept.set(+$any($event.target).value)" />
                 <span class="font-mono text-text">{{ intercept().toFixed(3) }}</span>
+                @if (tip() === 'lift') {
+                  <p class="mt-2 text-[11px] leading-relaxed text-muted">Moves the line up or down without changing steepness.</p>
+                }
               </label>
               <div class="rounded-xl border border-line bg-panel p-3 text-xs text-muted">
-                {{ mode.basic() ? t('match') : t('mse') }}
+                <span class="flex items-center justify-between">
+                  {{ mode.basic() ? t('match') : t('mse') }}
+                  @if (mode.basic()) {
+                    <button type="button" class="text-[10px] text-accent" (click)="tip.set(tip() === 'match' ? null : 'match')">?</button>
+                  }
+                </span>
                 @if (mode.basic()) {
                   <p class="mt-2 font-mono text-lg text-accent">{{ match() }}%</p>
                   <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-ink">
@@ -100,6 +145,9 @@ type Panel = 'happening' | 'math' | 'code' | 'ask';
                   </div>
                 }
                 <p class="mt-2 font-mono text-accent" [class.text-lg]="mode.advanced()" [class.text-xs]="mode.basic()" [class.text-muted]="mode.basic()" data-testid="mse-value">{{ currentMse().toFixed(4) }}</p>
+                @if (tip() === 'match') {
+                  <p class="mt-2 text-[11px] leading-relaxed text-muted">100% is the best a straight line can do. Noise in the dots keeps it from being a perfect 100.</p>
+                }
               </div>
               @if (mode.advanced()) {
                 <div class="rounded-xl border border-line bg-panel p-3 text-xs text-muted">{{ t('mae') }}
@@ -113,10 +161,36 @@ type Panel = 'happening' | 'math' | 'code' | 'ask';
               <button type="button" class="rounded-full border border-line px-4 py-2 text-sm" (click)="fitOls()">{{ mode.basic() ? 'Best straight line' : t('olsFit') }}</button>
               <button type="button" class="rounded-full border border-line px-4 py-2 text-sm" (click)="stepGd()">{{ mode.basic() ? t('oneStep') : t('stepGd') }}</button>
               <button type="button" class="rounded-full border border-line px-4 py-2 text-sm" (click)="resetFit()">{{ mode.basic() ? t('startOver') : t('resetFit') }}</button>
+              @if (mode.basic()) {
+                <button type="button" class="rounded-full border border-line px-4 py-2 text-sm" (click)="regen()">{{ t('newDots') }}</button>
+              }
               @if (mode.advanced()) {
                 <span class="font-mono text-[11px] text-muted">ŷ = {{ slope().toFixed(2) }} x + {{ intercept().toFixed(2) }}</span>
               }
             </div>
+
+            @if (mode.basic()) {
+              <section class="rounded-2xl border border-line bg-panel p-4">
+                <div class="flex items-center justify-between gap-2">
+                  <h2 class="text-sm font-medium">{{ t('tryThis') }}</h2>
+                  <p class="text-[11px] text-muted">Optional. Skip any of it.</p>
+                </div>
+                <div class="mt-3 flex flex-wrap gap-2">
+                  @for (idea of ideas(); track idea.id) {
+                    <button type="button" class="rounded-full border border-line px-3 py-1.5 text-left text-xs hover:border-accent" (click)="runIdea(idea)">
+                      {{ idea.label }}
+                    </button>
+                  }
+                </div>
+                <div class="mt-3 flex flex-wrap gap-2">
+                  @for (preset of presets; track preset.id) {
+                    <button type="button" class="rounded-full bg-ink px-3 py-1.5 text-xs text-muted hover:text-text" (click)="applyPreset(preset)" [title]="preset.blurb">
+                      {{ preset.label }}
+                    </button>
+                  }
+                </div>
+              </section>
+            }
 
             @if (mode.advanced()) {
               <div class="grid gap-3 md:grid-cols-3">
@@ -159,6 +233,9 @@ type Panel = 'happening' | 'math' | 'code' | 'ask';
         </div>
 
         <aside class="flex w-[76px] shrink-0 flex-col border-l border-line bg-panel py-3" aria-label="Inspector">
+          @if (mode.basic()) {
+            <button type="button" class="px-2 py-3 text-[11px] leading-tight text-muted hover:text-text" [class.text-accent]="panel() === 'help'" (click)="toggle('help')">{{ t('help') }}</button>
+          }
           <button type="button" class="px-2 py-3 text-[11px] leading-tight text-muted hover:text-text" [class.text-accent]="panel() === 'happening'" (click)="toggle('happening')">{{ mode.basic() ? t('explain') : t('inspect') }}</button>
           @if (mode.advanced()) {
             <button type="button" class="px-2 py-3 text-[11px] leading-tight text-muted hover:text-text" [class.text-accent]="panel() === 'math'" (click)="toggle('math')">{{ t('math') }}</button>
@@ -169,6 +246,18 @@ type Panel = 'happening' | 'math' | 'code' | 'ask';
 
         @if (panel(); as openPanel) {
           <section class="lab-scroll w-[340px] shrink-0 overflow-auto border-l border-line bg-panel p-4">
+            @if (openPanel === 'help') {
+              <h2 class="text-sm font-medium">{{ t('help') }}</h2>
+              <p class="mt-1 text-xs text-muted">Open a question when you want it. Nothing here is required.</p>
+              <div class="mt-4 space-y-3">
+                @for (item of glossary; track item.q) {
+                  <details class="rounded-xl border border-line bg-ink px-3 py-2">
+                    <summary class="cursor-pointer text-sm">{{ item.q }}</summary>
+                    <p class="mt-2 text-sm leading-relaxed text-muted">{{ item.a }}</p>
+                  </details>
+                }
+              </div>
+            }
             @if (openPanel === 'happening') {
               <h2 class="text-sm font-medium">{{ t('happening') }}</h2>
               <p class="mt-2 text-sm leading-relaxed text-muted">{{ headline() }}</p>
@@ -286,6 +375,11 @@ export class LabPage {
   readonly challengeAnswer = signal('');
   readonly challengeFeedback = signal('');
   readonly panel = signal<Panel | null>(null);
+  readonly tip = signal<'tilt' | 'lift' | 'match' | null>(null);
+  readonly presets = BEGINNER_PRESETS;
+  readonly legend = CHART_LEGEND;
+  readonly glossary = GLOSSARY;
+  readonly ideas = computed(() => tryIdeas(this.view().situation));
   readonly cells = signal<NotebookCell[]>([
     {
       id: 'py',
@@ -321,6 +415,9 @@ print("n", len(X))
   constructor() {
     effect(() => {
       if (this.mode.basic() && (this.panel() === 'math' || this.panel() === 'code')) {
+        this.panel.set(null);
+      }
+      if (this.mode.advanced() && this.panel() === 'help') {
         this.panel.set(null);
       }
     });
@@ -382,9 +479,29 @@ print("n", len(X))
       this.why();
     }
     if (id === 'inspect') this.open('happening');
+    if (id === 'help') this.open('help');
     if (id === 'math') this.open('math');
     if (id === 'code') this.open('code');
     if (id === 'ols') this.fitOls();
+  }
+
+  applyPreset(preset: BeginnerPreset) {
+    this.n.set(preset.n);
+    this.noise.set(preset.noise);
+    this.outliers.set(preset.outliers);
+    this.seed.set(preset.seed);
+    this.regen();
+  }
+
+  runIdea(idea: TryIdea) {
+    if (idea.action === 'find') this.findLine();
+    else if (idea.action === 'ols') this.fitOls();
+    else if (idea.action === 'break') this.breakIt();
+    else if (idea.action === 'reset') this.resetFit();
+    else if (idea.action === 'preset') {
+      const preset = this.presets.find((p) => p.id === idea.id);
+      if (preset) this.applyPreset(preset);
+    }
   }
 
   regen() {

@@ -136,6 +136,11 @@ export const en = {
   playHint: 'Drag the white line. The dashed line is the best straight fit.',
   askHint: 'Ask anything about this picture. You do not have to.',
   soon: 'soon',
+  help: 'Help',
+  tryThis: 'Try this',
+  newDots: 'New dots',
+  pictureKey: 'What you are looking at',
+  moreHelp: 'More help',
 } as const;
 
 export type MessageKey = keyof typeof en;

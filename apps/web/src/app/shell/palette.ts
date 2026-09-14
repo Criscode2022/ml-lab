@@ -49,6 +49,7 @@ export class Palette {
     }));
     return [
       ...labs,
+      { id: 'help', title: t('help'), group: 'Inspect', action: 'help' },
       { id: 'inspect', title: t('paletteInspect'), group: 'Inspect', action: 'inspect' },
       { id: 'math', title: t('paletteMath'), group: 'Inspect', action: 'math' },
       { id: 'code', title: t('paletteCode'), group: 'Inspect', action: 'code' },
