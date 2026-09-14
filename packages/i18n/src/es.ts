@@ -10,4 +10,12 @@ export const es: Partial<Record<MessageKey, string>> = {
   startLab: 'Empezar regresión lineal',
   why: '¿Por qué?',
   breakIt: 'Rómpelo',
+  labs: 'Laboratorios',
+  inspect: 'Inspeccionar',
+  happening: 'Qué está pasando',
+  math: 'Matemáticas',
+  code: 'Código',
+  ask: 'Preguntar',
+  olsFit: 'Mínimos cuadrados',
+  labNotReady: 'Este laboratorio aún no está listo. Regresión lineal y descenso por gradiente sí lo están.',
 };

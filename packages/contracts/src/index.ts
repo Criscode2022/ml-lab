@@ -50,7 +50,7 @@ export const CONCEPT_CATALOG: ConceptNode[] = [
     cluster: 'Optimization',
     prerequisites: ['linear-regression'],
     estimatedMinutes: { fast: 10, deep: 35 },
-    labReady: false,
+    labReady: true,
   },
   {
     id: 'regularization',

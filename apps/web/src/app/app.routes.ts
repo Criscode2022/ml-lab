@@ -13,11 +13,11 @@ export const routes: Routes = [
       { path: '', loadComponent: () => import('./pages/dashboard').then((m) => m.DashboardPage) },
       { path: 'onboarding', loadComponent: () => import('./pages/onboarding').then((m) => m.OnboardingPage) },
       {
-        path: 'lab/linear-regression',
+        path: 'lab/:conceptId',
         loadComponent: () => import('./pages/lab-page').then((m) => m.LabPage),
       },
       {
-        path: 'lab/linear-regression/:id',
+        path: 'lab/:conceptId/:id',
         loadComponent: () => import('./pages/lab-page').then((m) => m.LabPage),
       },
     ],

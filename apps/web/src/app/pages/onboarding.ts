@@ -8,7 +8,7 @@ import { Api } from '../core/api';
   template: `
     <div class="mx-auto max-w-2xl px-6 py-10">
       <p class="font-mono text-xs uppercase tracking-[0.2em] text-muted">How should we start?</p>
-      <h1 class="mt-2 text-3xl font-semibold">A path, then an experiment — not a syllabus.</h1>
+      <h1 class="mt-2 text-3xl font-semibold">Optional context. Then the labs.</h1>
       <div class="mt-8 space-y-6">
         <fieldset>
           <legend class="text-xs uppercase tracking-wide text-muted">Goal</legend>
@@ -36,9 +36,14 @@ import { Api } from '../core/api';
           <input type="range" min="10" max="60" step="5" class="mt-2 w-full" [value]="minutes()" (input)="minutes.set(+$any($event.target).value)" />
           <span class="font-mono text-accent">{{ minutes() }}</span>
         </label>
-        <button type="button" class="rounded-full bg-accent px-6 py-3 text-sm font-semibold text-ink" (click)="go()">
-          Start Linear Regression
-        </button>
+        <div class="flex flex-wrap gap-3">
+          <button type="button" class="rounded-full bg-accent px-6 py-3 text-sm font-semibold text-ink" (click)="go('/app')">
+            Browse labs
+          </button>
+          <button type="button" class="rounded-full border border-line px-6 py-3 text-sm" (click)="go('/app/lab/linear-regression')">
+            Jump into linear regression
+          </button>
+        </div>
       </div>
     </div>
   `,
@@ -64,7 +69,7 @@ export class OnboardingPage {
     { id: 'expert', label: 'Skip the basics' },
   ];
 
-  go() {
+  go(href: string) {
     this.api
       .saveProfile({
         goal: this.goal(),
@@ -73,7 +78,7 @@ export class OnboardingPage {
         learningMode: this.level() === 'beginner' ? 'fast' : 'deep',
       })
       .subscribe({
-        next: () => this.router.navigateByUrl('/app/lab/linear-regression'),
+        next: () => this.router.navigateByUrl(href),
       });
   }
 }

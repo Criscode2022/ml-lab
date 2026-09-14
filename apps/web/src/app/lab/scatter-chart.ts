@@ -39,6 +39,18 @@ import { residualPoints } from '@ml-lab/ml-core';
           />
         }
       }
+      @if (olsSlope() !== null && olsIntercept() !== null) {
+        <line
+          [attr.x1]="sx(xMin())"
+          [attr.y1]="sy(olsSlope()! * xMin() + olsIntercept()!)"
+          [attr.x2]="sx(xMax())"
+          [attr.y2]="sy(olsSlope()! * xMax() + olsIntercept()!)"
+          stroke="#5eead4"
+          stroke-opacity="0.28"
+          stroke-width="1.6"
+          stroke-dasharray="5 5"
+        />
+      }
       <line
         [attr.x1]="sx(xMin())"
         [attr.y1]="sy(yAt(xMin()))"
@@ -77,6 +89,8 @@ export class ScatterChart {
   readonly slope = input.required<number>();
   readonly intercept = input.required<number>();
   readonly mse = input.required<number>();
+  readonly olsSlope = input<number | null>(null);
+  readonly olsIntercept = input<number | null>(null);
   readonly showResiduals = input(true);
   readonly slopeChange = output<number>();
   readonly interceptChange = output<number>();

@@ -1,16 +1,9 @@
 import { Component, output, signal } from '@angular/core';
 import { Router } from '@angular/router';
+import { t } from '@ml-lab/i18n';
+import { LABS } from '../lab/catalog';
 
 type Cmd = { id: string; title: string; group: string; href?: string; action?: string };
-
-const COMMANDS: Cmd[] = [
-  { id: 'learn', title: 'Learn Linear Regression', group: 'Learn', href: '/app/lab/linear-regression', action: 'learn' },
-  { id: 'exp', title: 'Start experiment', group: 'Lab', href: '/app/lab/linear-regression', action: 'experiment' },
-  { id: 'ask', title: 'Ask AI', group: 'Tutor', href: '/app/lab/linear-regression', action: 'ask' },
-  { id: 'continue', title: 'Continue learning', group: 'Learn', href: '/app', action: 'continue' },
-  { id: 'break', title: 'Break gradient descent', group: 'Lab', href: '/app/lab/linear-regression', action: 'break' },
-  { id: 'dash', title: 'Open dashboard', group: 'Navigate', href: '/app' },
-];
 
 @Component({
   selector: 'app-palette',
@@ -18,9 +11,8 @@ const COMMANDS: Cmd[] = [
     <div class="fixed inset-0 z-50 flex items-start justify-center bg-black/60 pt-24" role="dialog" aria-label="Command palette" (click)="closed.emit()">
       <div class="w-full max-w-lg rounded-2xl border border-line bg-panel shadow-2xl" (click)="$event.stopPropagation()">
         <input
-          #q
           class="w-full rounded-t-2xl bg-transparent px-4 py-3 text-sm outline-none"
-          placeholder="Learn, experiment, ask…"
+          placeholder="Open a lab, inspect, ask…"
           [value]="query()"
           (input)="query.set($any($event.target).value)"
           (keydown.escape)="closed.emit()"
@@ -45,9 +37,28 @@ export class Palette {
   readonly query = signal('');
   constructor(private readonly router: Router) {}
 
+  private commands(): Cmd[] {
+    const labs: Cmd[] = LABS.map((lab) => ({
+      id: 'lab-' + lab.id,
+      title: lab.title,
+      group: lab.ready ? 'Labs' : 'Later',
+      href: lab.href,
+    }));
+    return [
+      ...labs,
+      { id: 'inspect', title: t('paletteInspect'), group: 'Inspect', action: 'inspect' },
+      { id: 'math', title: t('paletteMath'), group: 'Inspect', action: 'math' },
+      { id: 'code', title: t('paletteCode'), group: 'Inspect', action: 'code' },
+      { id: 'ask', title: t('why'), group: 'Tutor', href: undefined, action: 'ask' },
+      { id: 'ols', title: t('paletteOls'), group: 'Lab', action: 'ols' },
+      { id: 'break', title: t('paletteBreak'), group: 'Lab', action: 'break' },
+      { id: 'dash', title: t('paletteDashboard'), group: 'Navigate', href: '/app' },
+    ];
+  }
+
   filtered() {
     const q = this.query().toLowerCase();
-    return COMMANDS.filter((c) => !q || c.title.toLowerCase().includes(q) || c.group.toLowerCase().includes(q));
+    return this.commands().filter((c) => !q || c.title.toLowerCase().includes(q) || c.group.toLowerCase().includes(q));
   }
 
   run(c: Cmd) {
