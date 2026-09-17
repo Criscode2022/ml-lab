@@ -3,11 +3,15 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import {
   describeExperiment,
   generateRegressionDataset,
+  lossSurface,
   mae,
   mse,
   ordinaryLeastSquares,
+  residualHistogram,
   residualPoints,
+  rSquared,
   runGradientDescent,
+  splitPoints,
   type Point,
 } from '@ml-lab/ml-core';
 import { t } from '@ml-lab/i18n';
@@ -15,6 +19,8 @@ import type { ExperimentSnapshot, NotebookCell } from '@ml-lab/contracts';
 import { Api } from '../core/api';
 import { ScatterChart } from '../lab/scatter-chart';
 import { LossChart } from '../lab/loss-chart';
+import { LossSurface } from '../lab/loss-surface';
+import { ResidualHist } from '../lab/residual-hist';
 import { runPythonBrowser } from '../lab/pyodide-runner';
 import { isRunnableLab, labById } from '../lab/catalog';
 import { LabMode } from '../lab/mode';
@@ -32,7 +38,7 @@ type Panel = 'happening' | 'math' | 'code' | 'ask' | 'help';
 
 @Component({
   selector: 'app-lab-page',
-  imports: [ScatterChart, LossChart, RouterLink],
+  imports: [ScatterChart, LossChart, LossSurface, ResidualHist, RouterLink],
   template: `
     @if (!runnable()) {
       <div class="mx-auto max-w-lg p-10">
@@ -80,13 +86,17 @@ type Panel = 'happening' | 'math' | 'code' | 'ask' | 'help';
             <div class="overflow-hidden rounded-2xl border border-line" data-testid="lab-chart">
               <app-scatter-chart
                 class="block h-[420px]"
-                [points]="points()"
+                [points]="fitSet()"
+                [holdout]="held()"
                 [slope]="slope()"
                 [intercept]="intercept()"
                 [mse]="currentMse()"
                 [olsSlope]="view().olsSlope"
                 [olsIntercept]="view().olsIntercept"
+                [pinSlope]="pin()?.s ?? null"
+                [pinIntercept]="pin()?.b ?? null"
                 [showResiduals]="true"
+                [showEquation]="mode.advanced()"
                 (slopeChange)="slope.set($event)"
                 (interceptChange)="intercept.set($event)"
               />
@@ -157,13 +167,15 @@ type Panel = 'happening' | 'math' | 'code' | 'ask' | 'help';
             </div>
 
             <div class="flex flex-wrap items-center gap-2">
-              <button type="button" class="rounded-full bg-accent px-4 py-2 text-sm font-semibold text-ink" (click)="findLine()">{{ mode.basic() ? t('findLine') : t('runGd') }}</button>
+              <button type="button" class="lab-primary rounded-full bg-accent px-4 py-2 text-sm font-semibold text-ink" (click)="findLine()">{{ mode.basic() ? t('findLine') : t('runGd') }}</button>
               <button type="button" class="rounded-full border border-line px-4 py-2 text-sm" (click)="fitOls()">{{ mode.basic() ? 'Best straight line' : t('olsFit') }}</button>
               <button type="button" class="rounded-full border border-line px-4 py-2 text-sm" (click)="stepGd()">{{ mode.basic() ? t('oneStep') : t('stepGd') }}</button>
               <button type="button" class="rounded-full border border-line px-4 py-2 text-sm" (click)="resetFit()">{{ mode.basic() ? t('startOver') : t('resetFit') }}</button>
               @if (mode.basic()) {
                 <button type="button" class="rounded-full border border-line px-4 py-2 text-sm" (click)="regen()">{{ t('newDots') }}</button>
               }
+              <button type="button" class="rounded-full border border-line px-4 py-2 text-sm" (click)="undo()" [disabled]="history().length === 0">Undo</button>
+              <button type="button" class="rounded-full border border-line px-4 py-2 text-sm" (click)="pinGuess()">Pin guess</button>
               @if (mode.advanced()) {
                 <span class="font-mono text-[11px] text-muted">ŷ = {{ slope().toFixed(2) }} x + {{ intercept().toFixed(2) }}</span>
               }
@@ -189,6 +201,23 @@ type Panel = 'happening' | 'math' | 'code' | 'ask' | 'help';
                     </button>
                   }
                 </div>
+              </section>
+
+              <section class="lab-card rounded-2xl p-4">
+                <h2 class="text-sm font-medium">More to try</h2>
+                <label class="mt-3 block text-xs text-muted">If a new measurement is
+                  <input class="ml-2 w-24 rounded-lg border border-line bg-ink px-2 py-1 font-mono text-sm text-text" type="number" step="0.1" [value]="queryX()" (input)="queryX.set(+$any($event.target).value)" />
+                  <span class="ml-2 text-sm text-text">I guess {{ guessY().toFixed(2) }}</span>
+                </label>
+                <div class="mt-3 flex flex-wrap gap-2">
+                  <button type="button" class="rounded-full border border-line px-3 py-1.5 text-xs" (click)="hideSome.set(!hideSome())">
+                    {{ hideSome() ? 'Show all dots' : 'Hide some dots to test' }}
+                  </button>
+                  <button type="button" class="rounded-full border border-line px-3 py-1.5 text-xs" (click)="compareSearches()">Calm vs wild search</button>
+                </div>
+                @if (hideSome()) {
+                  <p class="mt-2 text-xs text-muted">Purple dots were hidden from the search. Error on hidden dots: {{ holdoutMse().toFixed(3) }}</p>
+                }
               </section>
             }
 
@@ -216,10 +245,30 @@ type Panel = 'happening' | 'math' | 'code' | 'ask' | 'help';
 
             <app-loss-chart
               [losses]="losses()"
+              [overlay]="compareLosses()"
               [diverged]="diverged()"
               [caption]="mode.basic() ? 'How the error changed' : 'loss'"
               [divergedLabel]="mode.basic() ? 'flew away' : 'diverging'"
             />
+
+            @if (mode.advanced()) {
+              <section class="grid gap-3 lg:grid-cols-2">
+                <div class="lab-card overflow-hidden rounded-2xl p-3">
+                  <app-loss-surface [cellsIn]="surface()" [slope]="slope()" [intercept]="intercept()" />
+                </div>
+                <div class="lab-card space-y-3 rounded-2xl p-4">
+                  <app-residual-hist [bins]="hist()" />
+                  <dl class="grid grid-cols-2 gap-2 font-mono text-[11px]">
+                    <div><dt class="text-muted">R²</dt><dd>{{ r2().toFixed(3) }}</dd></div>
+                    <div><dt class="text-muted">holdout MSE</dt><dd>{{ hideSome() ? holdoutMse().toFixed(3) : '—' }}</dd></div>
+                  </dl>
+                  <button type="button" class="rounded-full border border-line px-3 py-1.5 text-xs" (click)="hideSome.set(!hideSome())">
+                    {{ hideSome() ? 'Fit on all points' : 'Hold out 25%' }}
+                  </button>
+                  <button type="button" class="ml-2 rounded-full border border-line px-3 py-1.5 text-xs" (click)="compareSearches()">Compare η 0.08 vs 1.8</button>
+                </div>
+              </section>
+            }
 
             @if (depth() >= 4) {
               <div class="rounded-xl bg-ink p-4 font-mono text-sm text-accent" data-testid="math-panel">
@@ -379,7 +428,24 @@ export class LabPage {
   readonly presets = BEGINNER_PRESETS;
   readonly legend = CHART_LEGEND;
   readonly glossary = GLOSSARY;
+  readonly hideSome = signal(false);
+  readonly queryX = signal(0.8);
+  readonly pin = signal<{ s: number; b: number } | null>(null);
+  readonly history = signal<Array<{ s: number; b: number }>>([]);
+  readonly compareLosses = signal<number[]>([]);
   readonly ideas = computed(() => tryIdeas(this.view().situation));
+  readonly split = computed(() =>
+    this.hideSome() ? splitPoints(this.points(), this.seed(), 0.25) : { train: this.points(), holdout: [] as Point[] },
+  );
+  readonly fitSet = computed(() => this.split().train);
+  readonly held = computed(() => this.split().holdout);
+  readonly holdoutMse = computed(() => mse(this.held(), this.slope(), this.intercept()));
+  readonly r2 = computed(() => rSquared(this.fitSet(), this.slope(), this.intercept()));
+  readonly hist = computed(() => residualHistogram(this.fitSet(), this.slope(), this.intercept(), 8));
+  readonly surface = computed(() =>
+    lossSurface(this.fitSet(), this.view().olsSlope, this.view().olsIntercept, 3, 24),
+  );
+  readonly guessY = computed(() => this.slope() * this.queryX() + this.intercept());
   readonly cells = signal<NotebookCell[]>([
     {
       id: 'py',
@@ -396,12 +462,12 @@ print("n", len(X))
     },
   ]);
 
-  readonly currentMse = computed(() => mse(this.points(), this.slope(), this.intercept()));
-  readonly currentMae = computed(() => mae(this.points(), this.slope(), this.intercept()));
-  readonly residuals = computed(() => residualPoints(this.points(), this.slope(), this.intercept()));
+  readonly currentMse = computed(() => mse(this.fitSet(), this.slope(), this.intercept()));
+  readonly currentMae = computed(() => mae(this.fitSet(), this.slope(), this.intercept()));
+  readonly residuals = computed(() => residualPoints(this.fitSet(), this.slope(), this.intercept()));
   readonly view = computed(() =>
     describeExperiment({
-      points: this.points(),
+      points: this.fitSet(),
       slope: this.slope(),
       intercept: this.intercept(),
       learningRate: this.lr(),
@@ -455,11 +521,42 @@ print("n", len(X))
   }
 
   findLine() {
+    this.remember();
     if (this.mode.basic()) {
       this.lr.set(0.08);
       this.iters.set(80);
     }
     this.runGd();
+  }
+
+  remember() {
+    this.history.update((h) => [...h.slice(-24), { s: this.slope(), b: this.intercept() }]);
+  }
+
+  undo() {
+    const h = this.history();
+    const last = h.at(-1);
+    if (!last) return;
+    this.slope.set(last.s);
+    this.intercept.set(last.b);
+    this.history.set(h.slice(0, -1));
+  }
+
+  pinGuess() {
+    this.pin.set({ s: this.slope(), b: this.intercept() });
+  }
+
+  compareSearches() {
+    this.remember();
+    const init = { slope: this.slope(), intercept: this.intercept() };
+    const pts = this.fitSet();
+    const calm = runGradientDescent(pts, init, 0.08, 80);
+    const wild = runGradientDescent(pts, init, 1.8, 24);
+    this.losses.set(calm.losses);
+    this.compareLosses.set(wild.losses);
+    this.slope.set(calm.finalSlope);
+    this.intercept.set(calm.finalIntercept);
+    this.diverged.set(wild.diverged);
   }
 
   toggle(next: Panel) {
@@ -520,9 +617,13 @@ print("n", len(X))
     this.intercept.set(0);
     this.losses.set([mse(pts, 0, 0)]);
     this.diverged.set(false);
+    this.compareLosses.set([]);
+    this.pin.set(null);
+    this.history.set([]);
   }
 
   resetFit() {
+    this.remember();
     this.slope.set(0);
     this.intercept.set(0);
     this.losses.set([this.currentMse()]);
@@ -531,7 +632,7 @@ print("n", len(X))
 
   runGd() {
     const reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const run = runGradientDescent(this.points(), { slope: this.slope(), intercept: this.intercept() }, this.lr(), this.iters());
+    const run = runGradientDescent(this.fitSet(), { slope: this.slope(), intercept: this.intercept() }, this.lr(), this.iters());
     this.diverged.set(run.diverged || run.oscillated);
     if (reduce) {
       this.slope.set(run.finalSlope);
@@ -554,7 +655,8 @@ print("n", len(X))
   }
 
   stepGd() {
-    const run = runGradientDescent(this.points(), { slope: this.slope(), intercept: this.intercept() }, this.lr(), 1);
+    this.remember();
+    const run = runGradientDescent(this.fitSet(), { slope: this.slope(), intercept: this.intercept() }, this.lr(), 1);
     const last = run.steps.at(-1);
     if (!last) return;
     this.slope.set(last.slope);
@@ -564,6 +666,7 @@ print("n", len(X))
   }
 
   breakIt() {
+    this.remember();
     this.lr.set(1.8);
     this.iters.set(24);
     this.runGd();
@@ -713,7 +816,8 @@ print("n", len(X))
   }
 
   fitOls() {
-    const fit = ordinaryLeastSquares(this.points());
+    this.remember();
+    const fit = ordinaryLeastSquares(this.fitSet());
     this.slope.set(fit.slope);
     this.intercept.set(fit.intercept);
   }

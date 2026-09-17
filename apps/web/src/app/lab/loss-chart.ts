@@ -5,6 +5,9 @@ import { Component, computed, input } from '@angular/core';
   template: `
     <svg viewBox="0 0 720 160" class="h-40 w-full" role="img" [attr.aria-label]="'Loss curve, ' + losses().length + ' steps'">
       <rect x="0" y="0" width="720" height="160" fill="#0b0d12" rx="12" />
+      @if (pathB()) {
+        <path [attr.d]="pathB()" fill="none" stroke="#f87171" stroke-width="1.6" stroke-dasharray="4 3" />
+      }
       @if (path()) {
         <path [attr.d]="path()" fill="none" stroke="#5eead4" stroke-width="2" />
       }
@@ -20,12 +23,18 @@ export class LossChart {
   readonly diverged = input(false);
   readonly caption = input('loss');
   readonly divergedLabel = input('diverging');
+  readonly overlay = input<number[]>([]);
 
-  readonly path = computed(() => {
-    const ls = this.losses().filter((v) => Number.isFinite(v));
+  readonly path = computed(() => this.toPath(this.losses()));
+  readonly pathB = computed(() => this.toPath(this.overlay()));
+
+  private toPath(raw: number[]): string {
+    const other = this.overlay();
+    const all = [...raw, ...other].filter((v) => Number.isFinite(v));
+    const ls = raw.filter((v) => Number.isFinite(v));
     if (ls.length < 2) return '';
-    const max = Math.max(...ls);
-    const min = Math.min(...ls);
+    const max = Math.max(...all);
+    const min = Math.min(...all);
     const span = max - min || 1;
     return ls
       .map((v, i) => {
@@ -34,5 +43,5 @@ export class LossChart {
         return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
       })
       .join(' ');
-  });
+  }
 }

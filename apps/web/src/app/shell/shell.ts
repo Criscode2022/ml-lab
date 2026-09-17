@@ -10,7 +10,7 @@ import { Palette } from './palette';
   selector: 'app-shell',
   imports: [RouterOutlet, RouterLink, RouterLinkActive, Palette],
   template: `
-    <div class="flex min-h-screen bg-ink">
+    <div class="lab-shell flex min-h-screen">
       <nav class="flex w-[240px] shrink-0 flex-col border-r border-line" aria-label="Labs">
         <a routerLink="/app" class="px-5 py-5">
           <span class="block font-mono text-[11px] tracking-[0.22em] text-accent">ML LAB</span>

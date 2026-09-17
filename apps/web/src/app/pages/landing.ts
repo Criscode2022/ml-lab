@@ -6,29 +6,46 @@ import { Session } from '../core/session';
   selector: 'app-landing',
   imports: [RouterLink],
   template: `
-    <main class="min-h-screen bg-ink px-6 py-10 text-text">
+    <main class="lab-shell min-h-screen px-6 py-8 text-text">
       <header class="mx-auto flex max-w-6xl items-center justify-between">
-        <div class="font-mono text-sm tracking-[0.2em] text-accent">ML LAB</div>
+        <div class="font-mono text-sm tracking-[0.22em] text-accent">ML LAB</div>
         <a routerLink="/login" class="text-sm text-muted hover:text-text">Sign in</a>
       </header>
-      <section class="mx-auto mt-24 max-w-6xl">
-        <p class="font-mono text-xs uppercase tracking-[0.25em] text-muted">A lab to learn and play</p>
-        <h1 class="mt-4 max-w-3xl text-5xl font-semibold leading-[1.05] tracking-tight md:text-7xl">
-          You already know a line. Machine learning is guessing a better one.
+      <section class="mx-auto mt-20 max-w-6xl">
+        <p class="text-[11px] font-medium uppercase tracking-[0.22em] text-accent/80">A studio for intuition</p>
+        <h1 class="mt-5 max-w-3xl text-5xl font-semibold leading-[1.04] tracking-tight md:text-7xl">
+          Guess a line.<br />Watch it learn.<br />Ask why.
         </h1>
-        <p class="mt-6 max-w-xl text-lg text-muted">
-          Drag it. Watch a score. Let the computer try. Switch to Advanced when you want the real names: MSE, gradient, code.
+        <p class="mt-6 max-w-xl text-lg leading-relaxed text-muted">
+          Built for people who have never done machine learning. Start in Basic. Open Advanced when you want the real names.
         </p>
-        <div class="mt-10 flex flex-wrap gap-4">
+        <div class="mt-10 flex flex-wrap gap-3">
           <a
             [routerLink]="session.authed() ? '/app' : '/register'"
-            class="rounded-full bg-accent px-6 py-3 text-sm font-semibold text-ink"
+            class="lab-primary rounded-full bg-accent px-7 py-3 text-sm font-semibold text-ink"
           >
-            Enter the laboratory
+            Open the lab
           </a>
-          <a routerLink="/login" class="rounded-full border border-line px-6 py-3 text-sm text-text">
+          <a routerLink="/login" class="rounded-full border border-line px-7 py-3 text-sm text-text">
             I already have an account
           </a>
+        </div>
+        <div class="mt-20 grid gap-4 md:grid-cols-3">
+          <article class="lab-card rounded-2xl p-5">
+            <p class="font-mono text-[11px] text-accent">01</p>
+            <h2 class="mt-2 text-base font-medium">Drag</h2>
+            <p class="mt-1 text-sm leading-relaxed text-muted">Move a white line through teal dots. The score updates as you go.</p>
+          </article>
+          <article class="lab-card rounded-2xl p-5">
+            <p class="font-mono text-[11px] text-accent">02</p>
+            <h2 class="mt-2 text-base font-medium">Let it try</h2>
+            <p class="mt-1 text-sm leading-relaxed text-muted">The computer can walk toward a better line — or fail if it steps too hard.</p>
+          </article>
+          <article class="lab-card rounded-2xl p-5">
+            <p class="font-mono text-[11px] text-accent">03</p>
+            <h2 class="mt-2 text-base font-medium">Go deeper</h2>
+            <p class="mt-1 text-sm leading-relaxed text-muted">Math, code, holdout tests, and a loss surface wait in Advanced. Nothing is forced.</p>
+          </article>
         </div>
       </section>
     </main>

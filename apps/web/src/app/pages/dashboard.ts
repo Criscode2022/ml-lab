@@ -28,7 +28,7 @@ import { LabMode } from '../lab/mode';
           @if (!mode.basic() || lab.ready) {
             <a
               [routerLink]="lab.href"
-              class="rounded-2xl border border-line bg-panel p-5 transition hover:border-accent/50"
+              class="lab-card rounded-2xl p-5 transition hover:border-accent/40"
             >
               <div class="flex items-center justify-between">
                 <p class="text-[11px] uppercase tracking-wide text-muted">{{ lab.cluster }}</p>

@@ -59,8 +59,22 @@ import { residualPoints } from '@ml-lab/ml-core';
         stroke="#f4f7fb"
         stroke-width="2.4"
       />
+      @if (pinSlope() !== null && pinIntercept() !== null) {
+        <line
+          [attr.x1]="sx(xMin())"
+          [attr.y1]="sy(pinSlope()! * xMin() + pinIntercept()!)"
+          [attr.x2]="sx(xMax())"
+          [attr.y2]="sy(pinSlope()! * xMax() + pinIntercept()!)"
+          stroke="#818cf8"
+          stroke-width="1.8"
+          stroke-dasharray="2 4"
+        />
+      }
       @for (p of points(); track $index) {
         <circle [attr.cx]="sx(p.x)" [attr.cy]="sy(p.y)" r="4.2" fill="#5eead4" fill-opacity="0.9" />
+      }
+      @for (p of holdout(); track $index) {
+        <circle [attr.cx]="sx(p.x)" [attr.cy]="sy(p.y)" r="4.6" fill="#c4b5fd" stroke="#a78bfa" stroke-width="1" />
       }
       <circle
         [attr.cx]="sx(xMax())"
@@ -78,9 +92,11 @@ import { residualPoints } from '@ml-lab/ml-core';
         fill="#5eead4"
         class="cursor-ns-resize"
       />
-      <text x="16" y="22" fill="#8b919c" font-size="11" font-family="IBM Plex Mono, monospace">
-        ŷ = {{ slope().toFixed(2) }} x + {{ intercept().toFixed(2) }}
-      </text>
+      @if (showEquation()) {
+        <text x="16" y="22" fill="#8b919c" font-size="11" font-family="IBM Plex Mono, monospace">
+          ŷ = {{ slope().toFixed(2) }} x + {{ intercept().toFixed(2) }}
+        </text>
+      }
     </svg>
   `,
 })
@@ -92,6 +108,10 @@ export class ScatterChart {
   readonly olsSlope = input<number | null>(null);
   readonly olsIntercept = input<number | null>(null);
   readonly showResiduals = input(true);
+  readonly showEquation = input(true);
+  readonly holdout = input<Point[]>([]);
+  readonly pinSlope = input<number | null>(null);
+  readonly pinIntercept = input<number | null>(null);
   readonly slopeChange = output<number>();
   readonly interceptChange = output<number>();
 
@@ -186,7 +206,7 @@ export class ScatterChart {
   }
 
   private extent(axis: 'x' | 'y'): [number, number] {
-    const pts = this.points();
+    const pts = [...this.points(), ...this.holdout()];
     if (!pts.length) return [-2, 2];
     const vs = pts.map((p) => p[axis]);
     // include the current line so it stays in frame
